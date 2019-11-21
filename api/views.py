@@ -209,3 +209,173 @@ def remove_script(request, script_id):
     return JsonResponse({
         'script_id': script_id,
     })
+
+@authenticate_user(http_method='GET')
+def get_stages(request):
+    script_id = request.GET.get('script_id')
+
+    if not script_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        int(script_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type script id',
+        }, status=400)
+
+    try:
+        script = Script.objects.get(id=script_id)
+    except Script.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect script id',
+        }, status=404)
+
+    script_stages = Stage.objects.filter(script=script)
+
+    dict_script_stages = {'Stages': []}
+    if not script_stages:
+        return JsonResponse(dict_script_stages)
+
+    for stage in script_stages:
+        dict_script_stages['Stages'].append({'id': stage.id, 'name': stage.name, 'order': stage.order})
+
+    return JsonResponse(dict_script_stages)
+
+
+@authenticate_user(http_method='POST')
+def create_stage(request):
+    name_stage = request.POST.get('name')
+    order_stage = request.POST.get('order')
+    script_id = request.POST.get('script_id')
+
+    if not name_stage or not order_stage or not script_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        value = int(order_stage)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type order stage',
+        }, status=400)
+
+    if value < 0:
+        return JsonResponse({
+            'error': 'Order stage cant be negative',
+        }, status=400)
+
+    try:
+        int(script_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type script id',
+        }, status=400)
+
+    try:
+        script = Script.objects.get(id=script_id)
+    except Script.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect script id',
+        }, status=404)
+
+    try:
+        stage = Stage.objects.get(name=name_stage, script=script)
+    except Stage.DoesNotExist:
+        stage = None
+
+    if stage is None:
+        stage = Stage(name=name_stage, order=order_stage, script=script)
+        stage.save()
+    else:
+        return JsonResponse({
+            'error': 'This name is already in use',
+        }, status=400)
+
+    return JsonResponse({
+        'stage_id': stage.id,
+    })
+
+
+@authenticate_user(http_method='POST')
+def save_stage(request, stage_id):
+    new_name_stage = request.POST.get('name')
+    order_stage = request.POST.get('order')
+    script_id = request.POST.get('script_id')
+
+    if not new_name_stage or not order_stage or not script_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        value = int(order_stage)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type order stage',
+        }, status=400)
+
+    if value < 0:
+        return JsonResponse({
+            'error': 'Order stage cant be negative',
+        }, status=400)
+
+    try:
+        int(script_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type script id',
+        }, status=400)
+
+    try:
+        script = Script.objects.get(id=script_id)
+    except Script.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect script id',
+        }, status=404)
+
+    try:
+        stage = Stage.objects.get(id=stage_id)
+    except Stage.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect stage id',
+        }, status=404)
+
+    script_stages = Stage.objects.filter(script=script)
+    if script_stages:
+        try:
+            stages_equal_name = script_stages.filter(name=new_name_stage)
+        except Stage.DoesNotExist:
+            stages_equal_name = None
+        if (stages_equal_name and stage not in stages_equal_name) or (stages_equal_name and stage in stages_equal_name and stages_equal_name.count() > 1):
+            return JsonResponse({
+                'error': 'This name is already in use',
+            }, status=400)
+
+    stage.name = new_name_stage
+    stage.order = order_stage
+    stage.script = script
+    stage.save()
+
+    return JsonResponse({
+        'stage_id': stage.id,
+    })
+
+
+@authenticate_user(http_method='POST')
+def remove_stage(request, stage_id):
+    try:
+        stage = Stage.objects.get(id=stage_id)
+    except Stage.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect stage id',
+        }, status=404)
+
+    stage.delete()
+
+    return JsonResponse({
+        'stage_id': stage_id,
+    })
