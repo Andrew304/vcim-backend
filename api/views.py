@@ -379,3 +379,145 @@ def remove_stage(request, stage_id):
     return JsonResponse({
         'stage_id': stage_id,
     })
+
+
+@authenticate_user(http_method='GET')
+def get_tasks(request):
+    stage_id = request.GET.get('stage_id')
+
+    if not stage_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        int(stage_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type stage id',
+        }, status=400)
+
+    try:
+        stage = Stage.objects.get(id=stage_id)
+    except Stage.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect stage id',
+        }, status=404)
+
+    stage_tasks = Task.objects.filter(stage=stage)
+
+    dict_stage_tasks = {'Tasks': []}
+    if not stage_tasks:
+        return JsonResponse(dict_stage_tasks)
+
+    for task in stage_tasks:
+        dict_stage_tasks['Tasks'].append({'id': task.id, 'name': task.name})
+
+    return JsonResponse(dict_stage_tasks)
+
+
+@authenticate_user(http_method='POST')
+def create_task(request):
+    name_task = request.POST.get('name')
+    stage_id = request.POST.get('stage_id')
+
+    if not name_task or not stage_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        int(stage_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type stage id',
+        }, status=400)
+
+    try:
+        stage = Stage.objects.get(id=stage_id)
+    except Stage.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect stage id',
+        }, status=404)
+
+    stage_tasks = Task.objects.filter(stage=stage)
+    if stage_tasks:
+        task_equal_name = stage_tasks.filter(name=name_task)
+        if task_equal_name:
+            return JsonResponse({
+                'error': 'This name is already in use',
+            }, status=400)
+
+    task = Task(name=name_task, stage=stage)
+    task.save()
+
+    return JsonResponse({
+        'task_id': task.id,
+    })
+
+
+@authenticate_user(http_method='POST')
+def save_task(request, task_id):
+    new_name_task = request.POST.get('name')
+    stage_id = request.POST.get('stage_id')
+
+    if not new_name_task or not stage_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        int(stage_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type stage id',
+        }, status=400)
+
+    try:
+        stage = Stage.objects.get(id=stage_id)
+    except Stage.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect stage id',
+        }, status=404)
+
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect task id',
+        }, status=404)
+
+    stage_tasks = Task.objects.filter(stage=stage)
+    if stage_tasks:
+        try:
+            tasks_equal_name = stage_tasks.filter(name=new_name_task)
+        except Task.DoesNotExist:
+            tasks_equal_name = None
+        if (tasks_equal_name and task not in tasks_equal_name) or (tasks_equal_name and task in tasks_equal_name and tasks_equal_name.count() > 1):
+            return JsonResponse({
+                'error': 'This name is already in use',
+            }, status=400)
+
+    task.name = new_name_task
+    task.stage = stage
+    task.save()
+
+    return JsonResponse({
+        'task_id': task.id,
+    })
+
+
+@authenticate_user(http_method='POST')
+def remove_task(request, task_id):
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect task id',
+        }, status=404)
+
+    task.delete()
+
+    return JsonResponse({
+        'task_id': task_id,
+    })
