@@ -521,3 +521,148 @@ def remove_task(request, task_id):
     return JsonResponse({
         'task_id': task_id,
     })
+
+
+@authenticate_user(http_method='GET')
+def get_parameters(request):
+    task_id = request.GET.get('task_id')
+
+    if not task_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        int(task_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type task id',
+        }, status=400)
+
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect task id',
+        }, status=404)
+
+    task_parameters = Parameter.objects.filter(task=task)
+
+    dict_task_parameters = {'Parameters': []}
+    if not task_parameters:
+        return JsonResponse(dict_task_parameters)
+
+    for parameter in task_parameters:
+        dict_task_parameters['Parameters'].append({'id': parameter.id, 'name': parameter.name, 'value': parameter.value})
+
+    return JsonResponse(dict_task_parameters)
+
+
+@authenticate_user(http_method='POST')
+def create_parameter(request):
+    name_parameter = request.POST.get('name')
+    value_parameter = request.POST.get('value')
+    task_id = request.POST.get('task_id')
+
+    if not name_parameter or not value_parameter or not task_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        int(task_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type task id',
+        }, status=400)
+
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect task id',
+        }, status=404)
+
+    task_parameters = Parameter.objects.filter(task=task)
+    if task_parameters:
+        parameter_equal_name = task_parameters.filter(name=name_parameter)
+        if parameter_equal_name:
+            return JsonResponse({
+                'error': 'This name is already in use',
+            }, status=400)
+
+    parameter = Parameter(name=name_parameter, value=value_parameter, task=task)
+    parameter.save()
+
+    return JsonResponse({
+        'parameter_id': parameter.id,
+    })
+
+
+@authenticate_user(http_method='POST')
+def save_parameter(request, parameter_id):
+    new_name_parameter = request.POST.get('name')
+    new_value_parameter = request.POST.get('value')
+    task_id = request.POST.get('task_id')
+
+    if not new_name_parameter or not new_value_parameter or not task_id:
+        return JsonResponse({
+            'error': 'Missing field',
+        }, status=400)
+
+    try:
+        int(task_id)
+    except ValueError:
+        return JsonResponse({
+            'error': 'Incorrect data type task id',
+        }, status=400)
+
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect task id',
+        }, status=404)
+
+    try:
+        parameter = Parameter.objects.get(id=parameter_id)
+    except Parameter.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect parameter id',
+        }, status=404)
+
+    task_parameters = Parameter.objects.filter(task=task)
+    if task_parameters:
+        try:
+            parameters_equal_name = task_parameters.filter(name=new_name_parameter)
+        except Parameter.DoesNotExist:
+            parameters_equal_name = None
+        if (parameters_equal_name and parameter not in parameters_equal_name) or (parameters_equal_name and parameter in parameters_equal_name and parameters_equal_name.count() > 1):
+            return JsonResponse({
+                'error': 'This name is already in use',
+            }, status=400)
+
+    parameter.name = new_name_parameter
+    parameter.value = new_value_parameter
+    parameter.task = task
+    parameter.save()
+
+    return JsonResponse({
+        'parameter_id': parameter.id,
+    })
+
+
+@authenticate_user(http_method='POST')
+def remove_parameter(request, parameter_id):
+    try:
+        parameter = Parameter.objects.get(id=parameter_id)
+    except Parameter.DoesNotExist:
+        return JsonResponse({
+            'error': 'Incorrect parameter id',
+        }, status=404)
+
+    parameter.delete()
+
+    return JsonResponse({
+        'parameter_id': parameter_id,
+    })
