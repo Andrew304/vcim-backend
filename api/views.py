@@ -210,6 +210,7 @@ def remove_script(request, script_id):
         'script_id': script_id,
     })
 
+
 @authenticate_user(http_method='GET')
 def get_stages(request):
     script_id = request.GET.get('script_id')
