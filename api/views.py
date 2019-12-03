@@ -195,6 +195,7 @@ def export_script(request, script_id):
         'script': script,
     })
 
+
 @authenticate_user(http_method='POST')
 def remove_script(request, script_id):
     try:
