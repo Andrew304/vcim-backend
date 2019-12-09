@@ -1,12 +1,16 @@
 import operator
+import re
+from collections import OrderedDict
 
+import yamlordereddictloader
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.http import JsonResponse
 from django.shortcuts import HttpResponse
 from yaml import Dumper, dump
-import yamlordereddictloader
-from collections import OrderedDict
+
 from .models import Parameter, Script, Stage, Task
 
 
@@ -37,6 +41,13 @@ def authenticate_user(http_method):
 def register(request):
     user_email = request.POST.get('email')
     user_password = request.POST.get('password')
+
+    try:
+        validate_email(user_email)
+    except ValidationError:
+        return JsonResponse({
+            'error': 'Incorrect email'
+        }, status=400)
 
     if not user_email or not user_password:
         return JsonResponse({
@@ -73,7 +84,7 @@ def login(request):
     if user is None:
         return JsonResponse({
             'error': 'Incorrect email or password',
-        }, status=404)
+        }, status=400)
 
     return JsonResponse({
         'user_id': user.id,
@@ -171,24 +182,44 @@ def export_script(request, script_id):
             'error': 'This script doesnt have stages',
         }, status=404)
 
+    for stage in script_stages:
+        stage_tasks = Task.objects.filter(stage=stage)
+        if not stage_tasks:
+            return JsonResponse({
+                'error': 'Stage doesnt have tasks',
+            }, status=404)
+
     dict_stages = {'stages' : []}
     sorted_script_stages = sorted(script_stages, key=operator.attrgetter('order'))
     for stage in sorted_script_stages:
         dict_stages['stages'].append(stage.name)
     all_stages = dump(dict_stages, Dumper=Dumper)
+    all_stages += '\n'
 
-    dict_tasks = OrderedDict()
+    all_dump_tasks = []
     for stage in sorted_script_stages:
         stage_tasks = Task.objects.filter(stage=stage)
         if stage_tasks:
             for task in stage_tasks:
-                dict_tasks[task.name] = OrderedDict([('stage', stage.name)])
+                dict_task = OrderedDict()
+                dict_task[task.name] = OrderedDict([('stage', stage.name)])
                 task_parameters = Parameter.objects.filter(task=task)
                 if task_parameters:
                     for parameter in task_parameters:
-                        dict_tasks[task.name][parameter.name] = parameter.value
+                        if parameter.name == 'script' and parameter.value:
+                            values = parameter.value.split('\r\n')
+                            dict_task[task.name][parameter.name] = [value for value in values if value]
+                        elif parameter.name == 'only' and parameter.value:
+                            values = re.split('[ ;,]', parameter.value)
+                            dict_task[task.name][parameter.name] = [value for value in values if value]
+                        elif parameter.value:
+                            dict_task[task.name][parameter.name] = parameter.value
+                    all_dump_tasks.append(dump(dict_task, Dumper=yamlordereddictloader.Dumper))
+                    all_dump_tasks[-1] += '\n'
 
-    all_tasks = dump(dict_tasks, Dumper=yamlordereddictloader.Dumper)
+    all_tasks = ''
+    for task in all_dump_tasks:
+        all_tasks += task
     script = all_stages + all_tasks
 
     return JsonResponse({
@@ -566,7 +597,7 @@ def create_parameter(request):
     value_parameter = request.POST.get('value')
     task_id = request.POST.get('task_id')
 
-    if not name_parameter or not value_parameter or not task_id:
+    if not name_parameter or not task_id:
         return JsonResponse({
             'error': 'Missing field',
         }, status=400)
@@ -607,7 +638,7 @@ def save_parameter(request, parameter_id):
     new_value_parameter = request.POST.get('value')
     task_id = request.POST.get('task_id')
 
-    if not new_name_parameter or not new_value_parameter or not task_id:
+    if not new_name_parameter or not task_id:
         return JsonResponse({
             'error': 'Missing field',
         }, status=400)
