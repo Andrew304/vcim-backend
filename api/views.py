@@ -218,8 +218,8 @@ def export_script(request, script_id):
                     all_dump_tasks[-1] += '\n'
 
     all_tasks = ''
-    for task in all_dump_tasks:
-        all_tasks += task
+    for dump_task in all_dump_tasks:
+        all_tasks += dump_task
     script = all_stages + all_tasks
 
     return JsonResponse({
